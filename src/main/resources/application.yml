@@ -29,6 +29,10 @@ spring:
 
   # RabbitMQ 仅 mq profile 使用;默认不启动消费者。
   rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}

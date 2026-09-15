@@ -34,7 +34,10 @@ public final class AiDtos {
     }
 
     /** 进入 MQ 的任务消息。 */
-    public record GuideJobMessage(String jobId, String spotId, String style, String routeContext)
+    public record GuideJobMessage(String jobId, String spotId, String style, String routeContext, Integer generation)
             implements Serializable {
+        public GuideJobMessage(String jobId,String spotId,String style,String routeContext) {
+            this(jobId,spotId,style,routeContext,0);
+        }
     }
 }

@@ -15,9 +15,9 @@ public class TeamQuestionsController {
  public record Question(@NotBlank String spotId,@NotBlank @Size(max=2000) String question){}
  public record SharedAnswer(String jobId,Long authorId,String question,String status,String answer,String error){}
  @PostMapping
- public Result<AiDtos.GuideJobResponse> ask(@PathVariable Long teamId,@Valid @RequestBody Question question){
+ public Result<AiDtos.GuideJobResponse> ask(@PathVariable Long teamId,@Valid @RequestBody Question question,@RequestHeader(value="Idempotency-Key",required=false) String key){
   teams.requireMember(teamId,CurrentUser.id());
-  return Result.ok(ai.submitQuestion(new AiDtos.ExplanationRequest(question.spotId(),"brief",null),teamId,question.question()));
+  return Result.ok(ai.submitQuestion(new AiDtos.ExplanationRequest(question.spotId(),"brief",null),teamId,question.question(),key));
  }
  @GetMapping
  public Result<List<SharedAnswer>> list(@PathVariable Long teamId){

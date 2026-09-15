@@ -1,0 +1,57 @@
+{
+  "mode": "real MySQL/RabbitMQ, two Java processes, local model fixture",
+  "checks": [
+    {
+      "test": "cross-instance idempotent request",
+      "pass": true
+    },
+    {
+      "test": "one model invocation for duplicate requests",
+      "pass": true
+    },
+    {
+      "test": "confirmed outbox event persisted",
+      "pass": true
+    },
+    {
+      "test": "same key with changed payload rejected",
+      "pass": true
+    },
+    {
+      "test": "bounded retries exhausted",
+      "pass": true
+    },
+    {
+      "test": "terminal failure delivered to dead-letter queue",
+      "pass": true
+    },
+    {
+      "test": "owner can redrive failed job",
+      "pass": true
+    },
+    {
+      "test": "redrive completes with a new generation",
+      "pass": true
+    },
+    {
+      "test": "unroutable message remains recoverable",
+      "pass": true
+    },
+    {
+      "test": "restored routing recovers pending outbox",
+      "pass": true
+    },
+    {
+      "test": "broker outage still accepts durable task",
+      "pass": true
+    },
+    {
+      "test": "broker restart recovers delivery",
+      "pass": true
+    },
+    {
+      "test": "worker process crash recovered by lease",
+      "pass": true
+    }
+  ]
+}

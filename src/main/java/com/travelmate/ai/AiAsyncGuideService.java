@@ -12,8 +12,9 @@ import java.time.Instant;
 @Service
 public class AiAsyncGuideService {
  private final AiService ai;
- private final Executor executor;
- private final ObjectProvider<AiJobProducer> producer;
+ private final GuideJobStore store;
+ private final GuideJobWorker worker;
+ private final com.fasterxml.jackson.databind.ObjectMapper json;
  private final String mode;
  private final GuideJobRepository jobs;
  private final ScheduledExecutorService poller=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"job-events");t.setDaemon(true);return t;});
@@ -21,34 +22,37 @@ public class AiAsyncGuideService {
  private final Map<String,Subscription> subscriptions=new ConcurrentHashMap<>();
  private final com.travelmate.auth.SessionAuthenticator authenticator;
 
- public AiAsyncGuideService(AiService ai,@Qualifier("guideExecutor") Executor executor,ObjectProvider<AiJobProducer> producer,
+ public AiAsyncGuideService(AiService ai,GuideJobStore store,GuideJobWorker worker,com.fasterxml.jackson.databind.ObjectMapper json,
         @Value("${app.async.mode:local}") String mode,GuideJobRepository jobs,com.travelmate.auth.SessionAuthenticator authenticator){
-  this.ai=ai;this.executor=executor;this.producer=producer;this.mode=mode;this.jobs=jobs;this.authenticator=authenticator;
+  this.ai=ai;this.store=store;this.worker=worker;this.json=json;this.mode=mode;this.jobs=jobs;this.authenticator=authenticator;
   poller.scheduleWithFixedDelay(this::tick,1,1,TimeUnit.SECONDS);
  }
  @jakarta.annotation.PreDestroy public void close(){subscriptions.values().forEach(s->s.emitter().complete());poller.shutdownNow();}
- public GuideJobResponse submit(ExplanationRequest r){
-  return submit(r,null,null);
- }
- public GuideJobResponse submitQuestion(ExplanationRequest r,Long teamId,String question){
-  return submit(r,teamId,question);
- }
- private GuideJobResponse submit(ExplanationRequest r,Long teamId,String question){
+ public GuideJobResponse submit(ExplanationRequest r){return submit(r,null,null,null);}
+ public GuideJobResponse submit(ExplanationRequest r,String key){return submit(r,null,null,key);}
+ public GuideJobResponse submitQuestion(ExplanationRequest r,Long teamId,String question){return submit(r,teamId,question,null);}
+ public GuideJobResponse submitQuestion(ExplanationRequest r,Long teamId,String question,String key){return submit(r,teamId,question,key);}
+ private GuideJobResponse submit(ExplanationRequest r,Long teamId,String question,String key){
   ai.requireSpot(r.spotId());
-  GuideJob job=new GuideJob();job.setId(UUID.randomUUID().toString());job.setUserId(CurrentUser.id());
-  job.setTeamId(teamId);job.setQuestion(question);
-  job.setSpotId(r.spotId());job.setStyle(r.style());job.setRouteContext(r.routeContext());jobs.save(job);
-  GuideJobMessage msg=new GuideJobMessage(job.getId(),r.spotId(),r.style(),r.routeContext());
-  try{
-   if("rabbit".equals(mode)) {
-    var p=producer.getIfAvailable();if(p==null)throw new IllegalStateException("MQ profile is required");p.send(msg);
-   } else executor.execute(()->runJob(msg));
-  }catch(Exception e){job.setStatus("failed");job.setError("任务队列不可用，请稍后重试");jobs.save(job);throw ApiException.serviceUnavailable("任务队列不可用");}
-  return new GuideJobResponse(job.getId(),"queued","/api/ai/jobs/"+job.getId()+"/stream");
+  if(key!=null&&!key.matches("[A-Za-z0-9._:-]{1,128}"))throw ApiException.badRequest("幂等键必须为1至128位字母、数字或._:-");
+  Long uid=CurrentUser.id();
+  GuideJob job=new GuideJob();job.setId(key==null?UUID.randomUUID().toString():UUID.nameUUIDFromBytes((uid+":"+key).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString());
+  job.setUserId(uid);job.setTeamId(teamId);job.setQuestion(question);
+  job.setSpotId(r.spotId());job.setStyle(r.style());job.setRouteContext(r.routeContext());
+  try{job.setRequestHash(java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+       .digest(json.writeValueAsBytes(java.util.Arrays.asList(r.spotId(),r.style(),r.routeContext(),teamId,question)))));}
+  catch(Exception e){throw new IllegalStateException(e);}
+  GuideJob saved;
+  try{saved=store.create(job);}catch(org.springframework.dao.DataIntegrityViolationException e){
+   saved=jobs.findById(job.getId()).orElseThrow(()->e);GuideJobStore.checkPayload(saved,job.getRequestHash());
+  }
+  return response(saved);
  }
+ private GuideJobResponse response(GuideJob j){return new GuideJobResponse(j.getId(),j.getStatus(),"/api/ai/jobs/"+j.getId()+"/stream");}
+ public GuideJobResponse retry(String id){return response(store.retry(id,CurrentUser.id()));}
  public record JobView(String jobId,String status,String content,String error,Instant updatedAt){}
  public JobView status(String id){return view(owned(id,CurrentUser.id()));}
- public void cancel(String id){owned(id,CurrentUser.id());jobs.cancel(id,CurrentUser.id(),Instant.now());}
+ public void cancel(String id){store.cancel(id,CurrentUser.id());}
  private GuideJob owned(String id,Long uid){
   var j=jobs.findById(id).orElseThrow(()->ApiException.notFound("任务不存在"));
   if(!j.getUserId().equals(uid))throw ApiException.notFound("任务不存在");return j;
@@ -63,7 +67,6 @@ public class AiAsyncGuideService {
   return emitter;
  }
  private void tick(){
-  try{jobs.expire(Instant.now().minusSeconds(300),Instant.now());}catch(Exception ignored){}
   subscriptions.forEach((key,s)->{
    try{
     authenticator.authenticate(s.token());
@@ -75,15 +78,7 @@ public class AiAsyncGuideService {
   });
  }
  public void runJob(GuideJobMessage message){
-  if(jobs.claim(message.jobId(),Instant.now())==0)return;
-  try{
-   var j=jobs.findById(message.jobId()).orElseThrow();
-   String text=j.getQuestion()==null ? ai.explanation(new ExplanationRequest(j.getSpotId(),j.getStyle(),j.getRouteContext())).content()
-           : ai.chat(new ChatRequest(j.getSpotId(),j.getQuestion(),null)).answer();
-   jobs.finish(j.getId(),"completed",text,null,Instant.now());
-  }catch(Exception e){
-   jobs.finish(message.jobId(),"failed",null,"讲解生成失败，请检查服务配置或稍后重试",Instant.now());
-   if("rabbit".equals(mode))throw new org.springframework.amqp.AmqpRejectAndDontRequeueException("AI generation failed",e);
-  }
+  if(worker.run(message)&&"rabbit".equals(mode))
+   throw new org.springframework.amqp.AmqpRejectAndDontRequeueException("任务已达终态失败，可通过重试接口重驱");
  }
 }
