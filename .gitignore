@@ -19,3 +19,6 @@ HELP.md
 data/
 results.json
 infra-results.json
+
+eval/results/
+__pycache__/

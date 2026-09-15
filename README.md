@@ -90,3 +90,7 @@ AI/语音成功响应在测试中使用受控替身，不等同真实云服务�
 接口参考：
 - 阿里云语音合成：https://help.aliyun.com/zh/isi/developer-reference/restful-api-3
 - 阿里云短句识别：https://www.alibabacloud.com/help/en/isi/developer-reference/restful-api-2
+
+## AI 旅行助手升级
+
+新增多轮会话、工具调用、轻量RAG、路线校验和交互卡片。运行后访问 `/assistant/index.html`。完整接口、评测方法和验证边界见 [升级说明](docs/AI_ASSISTANT.md)。

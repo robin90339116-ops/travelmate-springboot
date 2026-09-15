@@ -36,7 +36,7 @@ public class SecurityConfig {
                                 "/api/auth/login", "/api/auth/refresh", "/api/auth/sms/code", "/api/auth/register", "/api/auth/password/login",
                                 "/api/catalog/**",
                                 "/api/map/**",
-                                "/api/health",
+                                "/api/health", "/assistant/", "/assistant/index.html", "/assistant/app.js", "/assistant/style.css",
                                 "/api/config/**",
                                 "/ws/**",
                                 "/h2-console/**").permitAll()

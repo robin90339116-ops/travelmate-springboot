@@ -96,6 +96,31 @@ public class QwenClient {
         }
     }
 
+    /** OpenAI-compatible tool response, preserving tool call IDs and arguments. */
+    @SuppressWarnings("unchecked")
+    public Map<String,Object> complete(List<Map<String,Object>> messages,
+            List<Map<String,Object>> tools) {
+        if (!configured()) throw ApiException.serviceUnavailable("AI Provider 未配置");
+        var body = new java.util.LinkedHashMap<String,Object>();
+        body.put("model", textModel); body.put("messages", messages);
+        body.put("temperature", 0.2); body.put("max_tokens", 1800);
+        if (!tools.isEmpty()) { body.put("tools", tools); body.put("tool_choice", "auto"); }
+        try {
+            var response = request(body);
+            if (response == null || !(response.get("choices") instanceof List<?> choices) || choices.isEmpty()
+                    || !(choices.get(0) instanceof Map<?,?> choice)
+                    || !(choice.get("message") instanceof Map<?,?> message))
+                throw ApiException.serviceUnavailable("模型返回结构无效");
+            if (!message.containsKey("tool_calls") && !(message.get("content") instanceof String))
+                throw ApiException.serviceUnavailable("模型没有返回内容或工具调用");
+            return new java.util.LinkedHashMap<>((Map<String,Object>)message);
+        } catch (ApiException e) { throw e; }
+        catch (Exception e) {
+            log.warn("工具模型调用失败: {} / {}",e.getClass().getSimpleName(),e.getCause()==null?"none":e.getCause().getClass().getSimpleName());
+            throw ApiException.serviceUnavailable("AI服务暂时不可用，请稍后重试");
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String,Object> request(Map<String,Object> body) {
         for(int attempt=0;attempt<3;attempt++) {

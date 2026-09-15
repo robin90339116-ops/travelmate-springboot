@@ -33,7 +33,10 @@ class AiContractTest {
   var provider=mock(QwenClient.class);var catalog=mock(com.travelmate.catalog.CatalogService.class);
   when(catalog.listSpots("test")).thenReturn(List.of(new com.travelmate.catalog.CatalogDtos.SpotView("1","test","A","type","intro","h","unknown","unknown",List.of(),"demo","pending",1d,1d)));
   when(provider.textModel()).thenReturn("text");when(provider.chat(anyString(),anyList())).thenReturn("{\"spotIds\":[\"999\"]}");
-  var planner=new RoutePlanningController(provider,mock(SpotRepository.class),new ObjectMapper(),catalog);
+  var validator=mock(com.travelmate.assistant.RouteValidator.class);
+  when(validator.validate(any(),anyList())).thenReturn(new com.travelmate.assistant.AssistantDtos.RouteCard(
+      List.of(new com.travelmate.assistant.AssistantDtos.Stop("1","A",20,"unknown","pending")),20,120,"within_budget",List.of(),List.of()));
+  var planner=new RoutePlanningController(provider,mock(SpotRepository.class),new ObjectMapper(),catalog,validator);
   assertThrows(ApiException.class,()->planner.generate(new RoutePlanningController.Request("test",2,"history")));
   when(provider.chat(anyString(),anyList())).thenReturn("{\"spotIds\":[\"1\"]}");
   assertNotNull(planner.generate(new RoutePlanningController.Request("test",2,"history")));
