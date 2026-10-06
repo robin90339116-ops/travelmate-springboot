@@ -16,7 +16,14 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      # 生产不再由 Hibernate 改表;schema 由 Flyway 版本化迁移管理,这里只校验实体与表一致。
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 对已由旧版 ddl-auto=update 建好的库,首次启动打基线(视为已在 V1),不重复建表;空库则执行 V1。
+    baseline-on-migrate: true
+    baseline-version: 1
   cache:
     type: redis
 

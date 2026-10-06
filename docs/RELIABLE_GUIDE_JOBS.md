@@ -43,7 +43,7 @@
 
 本地线程池与RabbitMQ共用同一任务状态和Outbox协议。本地模式需要文件数据库才能在应用重启后恢复，默认内存H2仅用于开发。
 
-现有生产profile仍使用Hibernate schema update；本轮增加任务字段和Outbox表，未声称完成版本化数据库迁移。正式生产升级仍需备份、审查DDL并采用受控迁移，这是下一阶段工作。
+生产profile现已采用Flyway版本化迁移（`db/migration/V1__init.sql` 含任务字段与Outbox表），`ddl-auto=validate` 只校验不改表；旧版由 `update` 建好的库通过 `baseline-on-migrate` 打基线。后续改表新增 `V2__*.sql`。正式生产升级仍需备份与DDL审查，迁移脚本本身已受版本控制。
 
 ## 测试证据
 

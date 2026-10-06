@@ -39,6 +39,8 @@
 
 AI配置通过进程环境变量传入：`DASHSCOPE_API_KEY`、`AI_BASE_URL`、`AI_TEXT_MODEL`、`AI_VISION_MODEL`、`AI_PROVIDER`。请求采用兼容chat/completions协议。更换供应商时必须同时设置URL、模型及凭证；更改provider名称本身不会自动切换服务。
 
+豆包（火山引擎方舟）同为兼容chat/completions协议，无需改代码：`AI_PROVIDER=doubao`、`DASHSCOPE_API_KEY=<方舟API Key>`、`AI_BASE_URL=https://ark.cn-beijing.volces.com/api/v3`，`AI_TEXT_MODEL`/`AI_VISION_MODEL` 填方舟控制台的模型名或推理接入点ID（`ep-xxx`）。预设见 `.env.example`。视觉模型需支持 `image_url`/`video_url` 内容分片；未在本仓库用真实方舟密钥联调过。
+
 连接超时5秒，读取超时30秒，429/5xx最多3次请求，其他错误不盲目重试。输入限长，AI写请求按账号限流；该限流为单实例实现，多实例需入口共享配额。
 
 讲解携带景点资料与待核实状态，提示词要求基于资料回答。**提示词不是事实正确性的保证**，尚无真实模型幻觉率评测。种子景点一律标记为演示资料，不能当作已核实的开放时间。
@@ -78,12 +80,14 @@ STOMP连接 `/ws`，在CONNECT原生头中设置 `Authorization:Bearer ...`。�
 
 Redis使用带类型信息的受限序列化、每次写入独立TTL抖动。未实现分布式回源锁，不宣称sync=true保证跨实例防击穿。Redis属于运行依赖，生产应配健康检查与告警。
 
-当前数据库使用Hibernate update便于原型迭代；正式承载用户前还应建立版本化迁移、备份恢复、TLS/网关、监控及密钥管理。这不是生产上线认证。
+数据库 schema 在 prod profile 由 **Flyway 版本化迁移**管理（`src/main/resources/db/migration/V1__init.sql`，由 Hibernate 在 MySQL 8 生成后固化），`ddl-auto=validate` 只校验实体与表一致、不再自动改表；对旧版 `update` 建好的库通过 `baseline-on-migrate` 打基线兼容。后续改表请新增 `V2__*.sql`，不要改已发布的脚本。dev/test/local 的 H2 仍由 Hibernate 自动建表（Flyway 在默认 profile 关闭）。正式承载用户前还应建立备份恢复、TLS/网关、监控及密钥管理。这不是生产上线认证。
 
 ## 验证与求职展示
 
 `./mvnw verify`运行JWT、业务权限、并发刷新、任务状态、Redis序列化及AI/语音HTTP契约测试。
 AI/语音成功响应在测试中使用受控替身，不等同真实云服务联调；模型质量、费用和时延需要真实调用评测。
+
+本机复验（2026-10-06，Docker 隔离 MySQL 8 / Redis 7 / RabbitMQ 3）：`./mvnw verify` 83/83；`scripts/infra_audit.py` 9/9（双实例跨实例缓存、会话、MQ 消费、Redis 广播、死信）；`scripts/reliability_audit.py` 13/13（幂等、Outbox、重试、重驱、broker 断线恢复、租约恢复）；Flyway 在空库自动建表并通过 `validate`，在旧库自动打基线；Docker 镜像构建通过。以上均使用模型替身，不含真实云服务。
 
 可展示：基于问题复现修复令牌轮换和越权，数据库持久化AI任务，结构化路线结果校验，鉴权实时通信，供应商异常契约测试，以及AI辅助开发后的人工验收过程。不要写未经测量的QPS、留存率或零幻觉承诺。
 

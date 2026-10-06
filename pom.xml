@@ -85,6 +85,16 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!-- 版本化数据库迁移(仅 MySQL/prod 启用;dev/test 的 H2 由 Hibernate 建表) -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-mysql</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>

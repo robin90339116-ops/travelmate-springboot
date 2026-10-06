@@ -23,6 +23,10 @@ spring:
       hibernate:
         format_sql: false
 
+  # Flyway 迁移脚本为 MySQL 方言,仅在 prod profile 启用;dev/test/local 的 H2 由 Hibernate 自动建表。
+  flyway:
+    enabled: false
+
   # dev 用本地 ConcurrentMap 缓存;prod/redis profile 切换为 Redis(见 RedisCacheConfig)。
   cache:
     type: simple
