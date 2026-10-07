@@ -126,6 +126,11 @@ public class AiService {
             : "以下基于演示资料生成，具体信息请以现场和官方公告为准。\n")+content;
     }
 
+    /** Source-labelled facts for a place, shared by text guides and the team voice room. */
+    public List<String> placeFacts(Spot s) {
+        return factsForSpot(s);
+    }
+
     private List<String> factsForSpot(Spot s) {
         List<String> facts = new ArrayList<>();
         facts.add("地点:" + s.getName());

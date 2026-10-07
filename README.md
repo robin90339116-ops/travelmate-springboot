@@ -63,6 +63,29 @@ STOMP连接 `/ws`，在CONNECT原生头中设置 `Authorization:Bearer ...`。�
 
 共享追问：`POST /api/teams/{id}/questions`传spotId、question；`GET`同路径返回团队问题及生成状态、答案；`DELETE /{jobId}`允许提问者取消。当前为并发异步任务列表，不承诺严格优先级队列或音频同步。
 
+## 任意地点导览
+
+真实定位后可讲解附近任意 OpenStreetMap 地点(国内外,南北极除外),无需预设城市:
+
+1. `POST /api/location/nearby` 获取附近 1.5 公里真实地点与 contextToken;`POST /api/location/select` 确认地点。
+2. `POST /api/places/import`(contextToken)把确认的地点导入为可讲解的 spot;同一 OSM 元素只导入一次。`GET /api/places/{id}` 读取。
+3. 讲解与追问沿用 `POST /api/ai/explanations/async`;个人逐地点问答 `GET/POST /api/ai/conversation`,追问会附带最近 3 轮问答。
+4. 步行路线 `POST /api/location/walking`(Valhalla 公共路网,失败时不以直线冒充)。
+
+导入时的资料增强(`PlaceEnricher`):保留 OSM 公共标签(描述、开放时间、文保等级、始建时间、建筑师、网站);若地点有 `wikipedia` 标签,免密钥拉取维基百科摘要;若用户做过 DeepSeek 联网检索,一并带入。每条资料带来源前缀并标记未核验,讲解开头会提示"基于OpenStreetMap社区地点资料生成"。外部服务失败只会减少资料,不阻断导入。`app.knowledge.wikipedia-enabled=false` 可关闭维基百科拉取。
+
+## 同游语音房间
+
+组队后成员的麦克风与扬声器接入同一语音房间,并共享一个 AI 导游:`/ws/team-voice`(首条消息 `{"type":"join","token":...,"teamId":...}`,仅房间成员可加入)。
+
+- 成员音频(16 kHz 单声道 PCM16,base64)经服务端转发给其他扬声器开启的成员;开启的麦克风混音后送入共享 AI,AI 语音(24 kHz)广播给所有扬声器开启的成员。
+- 互相打断:任何人在 AI 讲话时持续开口约 300 ms(或 AI 自身语音检测到有人说话),AI 立即对全房间停止,已发出的残余语音丢弃;大家停顿约 700 ms 后 AI 接话。另有"打断 AI"按钮。
+- 每人可开关麦克风(关闭后不向任何人和 AI 发送)和扬声器(关闭后不再接收);名单实时显示每人的麦克风、扬声器与说话状态。
+- AI 用团队当前共享地点的(增强)资料作简报,共享地点变更后自动更新。未配置实时模型时,房间仍可作为纯人声通话使用。
+- 采用服务端转发而非 P2P,统一做登录与成员校验、无需 TURN;适合小型同游团(默认上限 8 人,`app.team-voice.max-members`)。
+- 费用护栏:每个房间的 AI 会话占用实时模型的累计额度(`app.realtime.max-sessions`,上限 7),并受 `app.team-voice.ai-max-seconds`(默认 600)与 `ai-max-turns`(默认 30)限制,到限后 AI 断开、人声通话继续,可手动重新连接。
+- 同处一地使用时建议佩戴耳机,避免扬声器回声被麦克风再次拾取。`GET /api/team-voice/status` 查看 AI 是否可用。
+
 ## 地图、语音与个人数据
 
 - 高德搜索 `POST /api/map/search`：keyword、city。步行路线 `POST /api/map/route-validate`：origin、destination，格式经度,纬度。需要AMAP_WEB_KEY。
