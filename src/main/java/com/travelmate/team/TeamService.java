@@ -26,6 +26,7 @@ public class TeamService {
     private final TeamMemberRepository memberRepository;
     private final UserRepository userRepository;
     private final TeamBroadcaster broadcaster;
+    private final com.travelmate.repository.SpotRepository spots;
 
     @Transactional
     public TeamView createTeam(Long userId, CreateTeamRequest request) {
@@ -123,6 +124,9 @@ public class TeamService {
         Team team = requireTeam(teamId);
         requireMember(teamId, userId);
         if (request.currentPointId() != null) {
+            try {
+                if(!spots.existsById(Long.parseLong(request.currentPointId())))throw ApiException.notFound("共享地点不存在");
+            } catch(NumberFormatException e){throw ApiException.badRequest("共享地点编号无效");}
             team.setCurrentPointId(request.currentPointId());
         }
         if (request.playbackStatus() != null) {

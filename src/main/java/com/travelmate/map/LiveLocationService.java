@@ -13,7 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class LiveLocationService {
  public record Position(double longitude,double latitude,double accuracy,long timestamp){}
- public record Poi(String id,String name,String address,String category,String location,String sourceUrl){}
+ /** facts: selected public OpenStreetMap tags (description, wikipedia, opening_hours ...), used to enrich imported places. */
+ public record Poi(String id,String name,String address,String category,String location,String sourceUrl,Map<String,String> facts){
+  public Poi{facts=facts==null?Map.of():Map.copyOf(facts);}
+  public Poi(String id,String name,String address,String category,String location,String sourceUrl){this(id,name,address,category,location,sourceUrl,Map.of());}
+ }
  public record Source(String title,String url){}
  public record Context(String token,long userId,Position gps,String location,String address,List<Poi> places,
                        String selectedId,String knowledge,List<Source> sources,long expiresAt){}
@@ -43,6 +47,18 @@ public class LiveLocationService {
   if(Math.abs(System.currentTimeMillis()-p.timestamp())>30000)throw ApiException.badRequest("位置已过期，请重新定位");
  }
  private static String enc(String value){return java.net.URLEncoder.encode(value,java.nio.charset.StandardCharsets.UTF_8);}
+ private static final List<String> OSM_FACT_KEYS=List.of("description","opening_hours","heritage","start_date","architect","website","wikidata");
+ /** Copies a small allow-list of public OSM tags; never device data. Values are trimmed to 300 chars. */
+ static Map<String,String> osmFacts(JsonNode tags){
+  var out=new LinkedHashMap<String,String>();
+  for(String key:OSM_FACT_KEYS){
+   String v=tags.path(key+":zh").asText(tags.path(key).asText("")).trim();
+   if(!v.isEmpty())out.put(key,v.length()>300?v.substring(0,300):v);
+  }
+  String zh=tags.path("wikipedia:zh").asText("").trim(),wiki=tags.path("wikipedia").asText("").trim();
+  if(!zh.isEmpty())out.put("wikipedia","zh:"+zh);else if(!wiki.isEmpty())out.put("wikipedia",wiki);
+  return out;
+ }
  public Nearby nearby(long uid,Position p){
   validate(p);prune();
   long revision=revisions.getOrDefault(uid,0L);
@@ -60,7 +76,7 @@ public class LiveLocationService {
    String type=item.path("type").asText(),id=item.path("id").asText();if(!Set.of("node","way","relation").contains(type)||!id.matches("[0-9]+"))continue;
    var tags=item.path("tags");String name=tags.path("name:zh").asText(tags.path("name").asText());if(name.isBlank())continue;
    var center=type.equals("node")?item:item.path("center");double lat=center.path("lat").asDouble(Double.NaN),lng=center.path("lon").asDouble(Double.NaN);if(!Double.isFinite(lat)||!Double.isFinite(lng))continue;
-   places.add(new Poi(type+"/"+id,name,tags.path("addr:full").asText(tags.path("addr:street").asText("未收录地址")),tags.path("tourism").asText(tags.path("historic").asText()),lng+","+lat,"https://www.openstreetmap.org/"+type+"/"+id));
+   places.add(new Poi(type+"/"+id,name,tags.path("addr:full").asText(tags.path("addr:street").asText("未收录地址")),tags.path("tourism").asText(tags.path("historic").asText()),lng+","+lat,"https://www.openstreetmap.org/"+type+"/"+id,osmFacts(tags)));
   }
   places.sort(java.util.Comparator.comparingDouble(poi->{var xy=poi.location().split(",");return Math.pow(Double.parseDouble(xy[0])-p.longitude(),2)+Math.pow(Double.parseDouble(xy[1])-p.latitude(),2);}));
   // Brief overlap avoids disconnecting a live socket while the new context is delivered.

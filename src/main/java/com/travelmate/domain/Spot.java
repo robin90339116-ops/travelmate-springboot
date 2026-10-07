@@ -14,6 +14,10 @@ public class Spot {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Stable public map identity; never a device position or user identifier. */
+    @Column(unique = true, length = 64)
+    private String externalId;
+
     @Column(nullable = false, length = 32)
     private String cityKey;
 
@@ -44,6 +48,13 @@ public class Spot {
 
     @Column(length = 32)
     private String sourceStatus;
+
+    /** OpenStreetMap / Wikipedia / web-search facts, each prefixed with its source; JSON array of strings. */
+    @Column(length = 4000)
+    private String extraFacts;
+
+    @Column(length = 512)
+    private String sourceUrl;
 
     private Double latitude;
 

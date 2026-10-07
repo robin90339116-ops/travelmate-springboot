@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface SpotRepository extends JpaRepository<Spot, Long> {
     List<Spot> findByCityKey(String cityKey);
+    java.util.Optional<Spot> findByExternalId(String externalId);
 }

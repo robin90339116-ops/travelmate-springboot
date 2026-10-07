@@ -15,4 +15,5 @@ public interface GuideJobRepository extends JpaRepository<GuideJob,String> {
     Optional<GuideJob> lockById(@Param("id") String id);
     @Query("select j.id from GuideJob j where (j.status='running' and (j.leaseUntil<:now or (j.leaseUntil is null and j.updatedAt<:stale))) or (j.status='queued' and j.updatedAt<:stale) order by j.updatedAt")
     List<String> recoveryIds(@Param("now") Instant now,@Param("stale") Instant stale,Pageable page);
+    List<GuideJob> findTop20ByUserIdAndSpotIdAndTeamIdIsNullOrderByCreatedAtDesc(Long userId,String spotId);
 }

@@ -15,7 +15,7 @@ public class GuideJobWorker {
         try {
             content=execution.question()==null
                     ?ai.explanation(new AiDtos.ExplanationRequest(execution.spotId(),execution.style(),execution.routeContext())).content()
-                    :ai.chat(new AiDtos.ChatRequest(execution.spotId(),execution.question(),null)).answer();
+                    :ai.chat(new AiDtos.ChatRequest(execution.spotId(),execution.question(),execution.routeContext())).answer();
         } catch(ApiException e) {
             boolean retryable=e.getStatus().is5xxServerError()&&!e.getMessage().contains("未配置");
             return store.fail(execution,retryable);
